@@ -31,6 +31,12 @@
 // how many pixels we add to left/right margins
 #define SLOP (2 * GLI_SUBPIX)
 
+#define __countof(x) (sizeof x / sizeof *x)
+
+static int tab_completing = 0;
+static glui32 last_pressed_btn = 0;
+static int dir; /* tab suggestion directionality; 1 forward; -1 backward */
+
 static void
 put_text(window_textbuffer_t *dwin, const char *buf, int len, int pos, int oldlen);
 static void
@@ -1434,6 +1440,13 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
         }
     }
 
+    if ((arg != keycode_Tab) && (arg != keycode_TabInv) && (arg != keycode_MouseWheelDown) && (arg != keycode_MouseWheelUp)
+        && (arg != keycode_PageDown) && (arg != keycode_PageUp) && (arg != keycode_End) && (arg != keycode_Home))
+    {
+        last_pressed_btn = arg;
+        tab_completing = 0;
+    }
+
     switch (arg) {
 
     // History keys (up and down)
@@ -1553,7 +1566,194 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
         put_text_uni(dwin, nullptr, 0, dwin->infence, dwin->numchars - dwin->infence);
         break;
 
+    case keycode_DeleteWord:
+        {
+            if (dwin->incurs <= 2)
+                return;
+
+            /* Delete any trailing whitespace */
+            while (((char)dwin->chars[dwin->incurs - 1] == ' ') && dwin->incurs > 2) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
+            int i = 0;
+            for (i = dwin->incurs-1; i > 1; i--)
+            {
+                if (dwin->chars[i] == ' ')
+                    break;
+            }
+            i = dwin->incurs - i - 1;
+            while (i-- > 0) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
+            break;
+        }
+
     // Regular keys
+
+    case keycode_TabInv:
+        dir = -1;
+        /* FALLTHROUGH */
+    case keycode_Tab:
+        {
+            if (arg == keycode_Tab) dir = 1;
+            /* Delete any trailing whitespace */
+            while (((char)dwin->chars[dwin->incurs - 1] == ' ') && dwin->incurs > 2) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
+            /* Do not auto complete in the middle of a word */
+            if (dwin->incurs == dwin->numchars && dwin->incurs > 2)
+            {
+                static int i, n, z;
+                static int matches = 0;
+                static int len = 0; /* length of the word on the input */
+
+                static glk_linklisttab_struct *llist, *llistend, *current_suggestion = NULL; /* start node of the linked list */
+                if (!llist) {
+                    llist = (glk_linklisttab_struct*) malloc(sizeof(glk_linklisttab_struct));
+                    llistend = llist;
+                    memset(llist, 0, sizeof(glk_linklisttab_struct));
+                }
+
+                if (!tab_completing) { /* 1st TAB press */
+                    last_pressed_btn = keycode_Tab;
+                    tab_completing = 1;
+                    matches = 0;
+
+                    glk_linklisttab_struct* toerase = llist->next; /* cleanup previous linked list */
+                    while (toerase) {
+                        glk_linklisttab_struct* old = toerase;
+                        toerase = toerase->next;
+                        free(old->word);
+                        free(old);
+                    }
+                    memset(llist, 0, sizeof(glk_linklisttab_struct));
+                    current_suggestion = llist;
+                    llistend = llist;
+
+                    /* Step backward to find last space on input line */
+                    for (i = dwin->incurs - 1; i > 0; i--) if (dwin->chars[i] == 0x20) break;
+
+                    /* Step forward to extract last word */
+                    glui32 word[dwin->incurs - i - 1];
+                    for (n = i; n < dwin->incurs; n++)
+                        word[n - i] = dwin->chars[n + 1];
+                    len = __countof(word);
+
+                    /* Loop through lines of prv output */
+                    for (i = 1; i <= dwin->scrollmax; i++)
+                    {
+                        if (dwin->lines[i].chars[0] == '>' && dwin->lines[i].chars[1] == ' ') continue;
+                        /* Step backwards through char of the line */
+                        for (n = dwin->lines[i].len-1; n >= 0; n--)
+                        {
+                            /* Step forward again, break if char doesn't match word */
+                            for (z = 0; z <= len; z++)
+                            {
+                                glui32 c;
+                                c = dwin->lines[i].chars[n + z];
+                                if ((c != word[z])) break;
+
+                                if ((z + 1) == len) {
+                                    if ((n + z + 1 - len) > 0)
+                                    {
+                                        /* if the found word is at position > 0 and is not preceded by a whitespace; break */
+                                        if (dwin->lines[i].chars[n + z - len] != ' ') break;
+                                    }
+                                    /* if the found word is at position == 0 and its 1st letter is different from inputword 1st letter; break */
+                                    else if (((n + z + 1 - len) == 0) && (word[0] != dwin->lines[i].chars[n + z + 1 - len])) break;
+
+                                    matches++;
+                                    int lenw = 0;
+
+                                    /* ([n+z-len+1+jj] < [dwin->lines[i].len]); ergo ([jj] < [dwin->lines[i].len-1+len-z-n]) */
+                                    for (int jj = 0; jj < (dwin->lines[i].len-1+len-z-n); jj++)
+                                    {
+                                        glui32 cc;
+                                        cc = dwin->lines[i].chars[n + z - len + 1 + jj];
+                                        /* suggestions can only be made of alphanumeric ASCII */
+                                        if ((cc >= 'A' && cc <= 'Z') || (cc >= 'a' && cc <= 'z') || (cc >= '0' && cc <= '9'))
+                                            lenw++;
+                                        else break;
+                                    }
+                                    glui32* tmpw = &(dwin->lines[i].chars[n + z - len + 1]); /* pointer to the found suggestion */
+
+
+                                    if (len == lenw)  matches--; /* if it's of the same length as the word on input, there's nothing to complete */
+                                    else if (matches == 1) /* first match, we can add it automatically to the linked list */
+                                    {
+                                        memset(llist, 0, sizeof(glk_linklisttab_struct));
+                                        llist->word = (glui32*) malloc(sizeof(glui32) * lenw);
+                                        memcpy((void*) llist->word, (const void*) tmpw, sizeof(glui32) * lenw);
+                                        llist->length = lenw;
+                                        llistend = llist;
+                                    }
+                                    else /* matches > 1 */
+                                    {
+                                        glk_linklisttab_struct* lastword = llist;
+                                        int zz = 0;
+                                        do /* traverse the linked list */
+                                        {
+                                            if (cmp_glui32_word(tmpw, lenw, lastword->word, lastword->length)) /* check for duplicates */
+                                            {
+                                                zz = 1;
+                                                matches--;
+                                                break;
+                                            }
+                                            if (lastword->next == NULL) break;
+                                            lastword = lastword->next;
+                                        } while (lastword);
+
+                                        if (!zz) /* if a duplicate wasn't found */
+                                        {
+                                            /* allocate new word in the linked list */
+                                            (lastword->next) = (glk_linklisttab_struct*) malloc(sizeof(glk_linklisttab_struct));
+                                            memset(lastword->next, 0, sizeof(glk_linklisttab_struct));
+                                            lastword->next->word = (glui32*) malloc(sizeof(glui32) * lenw);
+                                            memcpy((void*) lastword->next->word, (const void*) tmpw, sizeof(glui32) * lenw);
+                                            lastword->next->length = lenw;
+                                            lastword->next->prev = lastword;
+                                            lastword = lastword->next;
+                                            llistend = lastword;
+                                        }
+                                    }
+                                    break; /* a match was found and processed; break */
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!matches || last_pressed_btn != keycode_Tab)
+                {
+                    /* didn't find anything OR pressed a key inbetween TAB */
+                    /* TAB presses have to be successive, otherwise the linked list has to be created anew */
+                    current_suggestion = llist; /* revert the current suggestion to the start of the linked list */
+                    tab_completing = 0;
+                }
+                else
+                {
+                    if (dir == 1)
+                    {
+                        if (current_suggestion->next) /* forward directionality */
+                        current_suggestion = current_suggestion->next;
+                        else current_suggestion = llist; /* if we are at the end of the list; revert current suggestion back to the start; i.e. list is circular */
+                    }
+                    else
+                    {
+                        if (current_suggestion->prev) /* backward directionality */
+                        current_suggestion = current_suggestion->prev;
+                        else current_suggestion = llistend;
+                    }
+
+                    /* erase the input word */
+                    while (len--) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
+                    /* write current suggestion */
+                    put_text_uni(dwin, current_suggestion->word, current_suggestion->length, dwin->incurs, 0);
+                    len = current_suggestion->length;
+
+                    last_pressed_btn = keycode_Tab;
+                }
+            }
+
+        /* end the suggestion with a whitespace */
+        glui32 space = 0x20;
+        put_text_uni(dwin, &space, 1, dwin->incurs, 0);
+        break;
+        }
 
     case keycode_Return:
         acceptline(win, arg);
@@ -1684,4 +1884,21 @@ void win_textbuffer_click(window_textbuffer_t *dwin, int sx, int sy)
         gli_copyselect = true;
         gli_start_selection(sx, sy);
     }
+}
+
+int cmp_glui32_word(glui32 word1[], size_t sz1, glui32 word2[], size_t sz2) {
+
+    if (sz1 > sz2)
+    {
+        for (int i = 0; i < sz2; i++)
+            if (word1[i] != word2[i])
+                return false;
+    }
+    else
+    {
+        for (int i = 0; i < sz1; i++)
+            if (word1[i] != word2[i])
+                return false;
+    }
+    return true;
 }

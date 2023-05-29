@@ -199,6 +199,16 @@ std::unique_ptr<T, Deleter> unique(T *p, Deleter deleter)
 bool read_file(const std::string &filename, std::vector<unsigned char> &buf);
 }
 
+int cmp_glui32_word(glui32 word1[], size_t sz1, glui32 word2[], size_t sz2);
+typedef struct glk_linklisttab_struct glk_linklisttab_struct;
+struct glk_linklisttab_struct
+{
+	glui32 *word;
+	glk_linklisttab_struct* next;
+    glk_linklisttab_struct* prev;
+	uint32_t length;
+};
+
 template <std::size_t N>
 class PixelView;
 

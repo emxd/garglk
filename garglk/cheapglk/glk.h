@@ -527,6 +527,8 @@ extern void garglk_zbleep(glui32 number);
 #define keycode_MouseWheelDown      (0xffffefff)
 #define keycode_SkipWordLeft        (0xfffff000)
 #define keycode_SkipWordRight       (0xfffff001)
+#define keycode_TabInv              (0xffffef8f)
+#define keycode_DeleteWord          (0xffffef9f)
 
 #ifdef __cplusplus
 }

@@ -535,6 +535,7 @@ void winkey(NSEvent *evt)
         {{NSEventModifierFlagOption, NSKEY_RIGHT}, []{ gli_input_handle_key(keycode_SkipWordRight); }},
         {{NSEventModifierFlagOption, NSKEY_DOWN},  []{ gli_input_handle_key(keycode_PageDown); }},
         {{NSEventModifierFlagOption, NSKEY_UP},    []{ gli_input_handle_key(keycode_PageUp); }},
+        {{NSEventModifierFlagOption, NSKEY_D},     []{ gli_input_handle_key(keycode_DeleteWord); }},
 
         // command modified arrow key
         {{NSEventModifierFlagCommand, NSKEY_LEFT},  []{ gli_input_handle_key(keycode_Home); }},
@@ -561,6 +562,7 @@ void winkey(NSEvent *evt)
         {{NSEventModifierFlagControl, NSKEY_N}, []{ gli_input_handle_key(keycode_Down); }},
         {{NSEventModifierFlagControl, NSKEY_P}, []{ gli_input_handle_key(keycode_Up); }},
         {{NSEventModifierFlagControl, NSKEY_U}, []{ gli_input_handle_key(keycode_Escape); }},
+        {{NSEventModifierFlagControl, NSKEY_TAB}, []{ gli_input_handle_key(keycode_TabInv); }},
 
         // unmodified key for line editing
         {{0, NSKEY_LEFT},  []{ gli_input_handle_key(keycode_Left); }},

@@ -422,6 +422,7 @@ void garglk::View::keyPressEvent(QKeyEvent *event)
         {{Qt::ControlModifier, Qt::Key_X},     []{ winclipsend(QClipboard::Clipboard); }},
         {{Qt::ControlModifier, Qt::Key_Left},  []{ gli_input_handle_key(keycode_SkipWordLeft); }},
         {{Qt::ControlModifier, Qt::Key_Right}, []{ gli_input_handle_key(keycode_SkipWordRight); }},
+        {{Qt::ControlModifier, Qt::Key_Tab},   []{ gli_input_handle_key(keycode_TabInv); }},
 
 #ifdef __HAIKU__
         // For some reason, on Haiku, the "shifted" versions of comma/period are
@@ -441,6 +442,8 @@ void garglk::View::keyPressEvent(QKeyEvent *event)
         {{Qt::ShiftModifier | Qt::ControlModifier, Qt::Key_T}, [] { show_themes(); }},
 
         {{Qt::ShiftModifier, Qt::Key_Backspace}, []{ gli_input_handle_key(keycode_Delete); }},
+
+        {{Qt::AltModifier, Qt::Key_D},        []{ gli_input_handle_key(keycode_DeleteWord); }},
 
         {{Qt::NoModifier, Qt::Key_Escape},    []{ gli_input_handle_key(keycode_Escape); }},
         {{Qt::NoModifier, Qt::Key_Tab},       []{ gli_input_handle_key(keycode_Tab); }},
