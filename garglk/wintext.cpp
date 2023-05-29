@@ -1592,14 +1592,15 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
     case keycode_Tab:
         {
             if (arg == keycode_Tab) dir = 1;
-            /* Delete any trailing whitespace */
-            while (((char)dwin->chars[dwin->incurs - 1] == ' ') && dwin->incurs > 2) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
             /* Do not auto complete in the middle of a word */
             if (dwin->incurs == dwin->numchars && dwin->incurs > 2)
             {
                 static int i, n, z;
                 static int matches = 0;
                 static int len = 0; /* length of the word on the input */
+
+                /* Delete any trailing whitespace */
+                while (((char)dwin->chars[dwin->incurs - 1] == ' ') && dwin->incurs > 2) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
 
                 static glk_linklisttab_struct *llist, *llistend, *current_suggestion = NULL; /* start node of the linked list */
                 if (!llist) {
@@ -1610,7 +1611,6 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
 
                 if (!tab_completing) { /* 1st TAB press */
                     last_pressed_btn = keycode_Tab;
-                    tab_completing = 1;
                     matches = 0;
 
                     glk_linklisttab_struct* toerase = llist->next; /* cleanup previous linked list */
@@ -1726,18 +1726,19 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
                 }
                 else
                 {
-                    if (dir == 1)
+                    if (dir == 1 && tab_completing) /* if tab_completing, we're at least on the 2nd Tab press, we move to the next word */
                     {
                         if (current_suggestion->next) /* forward directionality */
                         current_suggestion = current_suggestion->next;
                         else current_suggestion = llist; /* if we are at the end of the list; revert current suggestion back to the start; i.e. list is circular */
                     }
-                    else
+                    else if (dir == -1 && tab_completing)
                     {
                         if (current_suggestion->prev) /* backward directionality */
                         current_suggestion = current_suggestion->prev;
                         else current_suggestion = llistend;
                     }
+                    tab_completing = 1;
 
                     /* erase the input word */
                     while (len--) put_text_uni(dwin, NULL, 0, dwin->incurs - 1, 1);
@@ -1745,13 +1746,14 @@ void gcmd_buffer_accept_readline(window_t *win, glui32 arg)
                     put_text_uni(dwin, current_suggestion->word, current_suggestion->length, dwin->incurs, 0);
                     len = current_suggestion->length;
 
+                    /* end the suggestion with a whitespace */
+                    glui32 space = 0x20;
+                    put_text_uni(dwin, &space, 1, dwin->incurs, 0);
+
                     last_pressed_btn = keycode_Tab;
                 }
             }
 
-        /* end the suggestion with a whitespace */
-        glui32 space = 0x20;
-        put_text_uni(dwin, &space, 1, dwin->incurs, 0);
         break;
         }
 
