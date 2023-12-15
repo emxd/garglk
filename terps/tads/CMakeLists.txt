@@ -6,8 +6,6 @@ if(WITH_TADS)
         glk/t23run.cpp glk/t2askf.c glk/t2indlg.c glk/t3askf.cpp
         glk/t3indlg.cpp glk/vmuni_cs.cpp)
 
-    list(APPEND srcs glk/garglk.cpp)
-
     list(APPEND srcs tads2/argize.c tads2/bif.c tads2/bifgdum.c tads2/cmap.c
         tads2/cmd.c tads2/dat.c tads2/dbgtr.c tads2/errmsg.c tads2/execmd.c
         tads2/fio.c tads2/fioxor.c tads2/getstr.c tads2/ler.c tads2/linfdum.c
@@ -47,7 +45,7 @@ if(WITH_TADS)
     list(APPEND srcs tads3/vmconnom.cpp)
 
     set(macros GARGOYLE VMGLOB_STRUCT GLK_UNICODE GLK_TIMERS TC_TARGET_T3 RUNTIME)
-    if(MINGW32)
+    if(MINGW32 OR MSVC)
         list(APPEND macros DMSDOS DT_WIN32)
     endif()
 

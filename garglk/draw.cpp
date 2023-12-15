@@ -22,6 +22,7 @@
 #include <cmath>
 #include <cstddef>
 #include <functional>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -46,6 +47,8 @@
 #endif
 
 using namespace std::literals;
+
+#define UNICODE_QUESTION_MARK 63
 
 #define GAMMA_BITS 11
 #define GAMMA_MAX ((1 << GAMMA_BITS) - 1)
@@ -175,16 +178,15 @@ FontEntry Font::getglyph(glui32 cid)
     FT_Vector v;
     int err;
     glui32 gid;
-    int x;
     FontEntry entry;
     std::size_t datasize;
 
     gid = FT_Get_Char_Index(m_face, cid);
     if (gid == 0) {
-        throw std::out_of_range(Format("no glyph for {}", gid));
+        throw std::out_of_range(Format("no glyph for {}", cid));
     }
 
-    for (x = 0; x < GLI_SUBPIX; x++) {
+    for (int x = 0; x < GLI_SUBPIX; x++) {
         v.x = (x * 64) / GLI_SUBPIX;
         v.y = 0;
 
@@ -383,7 +385,7 @@ Font::Font(FontFace fontface, FT_Face face, const std::string &fontpath) :
         throw FreetypeError(err, Format("Error in FT_Set_Char_Size for {}", fontpath));
     }
 
-    err = FT_Select_Charmap(m_face, ft_encoding_unicode);
+    err = FT_Select_Charmap(m_face, FT_ENCODING_UNICODE);
     if (err != 0) {
         throw FreetypeError(err, Format("Error in FT_Select_CharMap for {}", fontpath));
     }
@@ -551,10 +553,9 @@ static void draw_pixel_lcd_gamma(int x, int y, const unsigned char *alpha, const
 
 static void draw_bitmap_gamma(const Bitmap &b, int x, int y, const Color &rgb)
 {
-    int i, k, c;
-    for (k = 0; k < b.h; k++) {
-        for (i = 0; i < b.w; i++) {
-            c = b.data[k * b.pitch + i];
+    for (int k = 0; k < b.h; k++) {
+        for (int i = 0; i < b.w; i++) {
+            auto c = b.data[k * b.pitch + i];
             draw_pixel_gamma(x + b.lsb + i, y - b.top + k, c, rgb);
         }
     }
@@ -562,9 +563,8 @@ static void draw_bitmap_gamma(const Bitmap &b, int x, int y, const Color &rgb)
 
 static void draw_bitmap_lcd_gamma(const Bitmap &b, int x, int y, const Color &rgb)
 {
-    int i, j, k;
-    for (k = 0; k < b.h; k++) {
-        for (i = 0, j = 0; i < b.w; i += 3, j++) {
+    for (int k = 0; k < b.h; k++) {
+        for (int i = 0, j = 0; i < b.w; i += 3, j++) {
             draw_pixel_lcd_gamma(x + b.lsb + j, y - b.top + k, b.data.data() + k * b.pitch + i, rgb);
         }
     }
@@ -668,55 +668,55 @@ static int gli_string_impl(int x, FontFace fontface, const glui32 *s, std::size_
             n--;
         }
 
-        auto glyph = [&f, &fontface](glui32 c) -> std::shared_ptr<const FontEntry> {
-            // Cache all glyphs. If a glyph is not found, return null.
-            static std::unordered_map<std::pair<FontFace, glui32>, std::shared_ptr<FontEntry>> fallback_cache;
+        // Return a FontEntry corresponding to the specific glyph. If
+        // that glyph is unavailable, log a warning and select a
+        // question mark instead. If a question mark can't be loaded,
+        // abort with an error message. Lookups are cached.
+        auto glyph = [&f, &fontface](glui32 c) -> const FontEntry & {
+            static std::unordered_map<std::pair<FontFace, glui32>, FontEntry> fallback_cache;
 
             auto key = std::make_pair(fontface, c);
 
             auto it = fallback_cache.find(key);
             if (it == fallback_cache.end()) {
-                std::shared_ptr<FontEntry> entry;
-
                 try {
-                    entry = std::make_shared<FontEntry>(f.getglyph(c));
+                    it = fallback_cache.emplace(key, f.getglyph(c)).first;
                 } catch (const std::out_of_range &) {
                     for (auto &font : glyph_substitution_fonts[fontface]) {
                         try {
-                            entry = std::make_shared<FontEntry>(font.getglyph(c));
+                            it = fallback_cache.emplace(key, font.getglyph(c)).first;
                             break;
                         } catch (const std::out_of_range &) {
                         }
                     }
                 }
 
-                it = fallback_cache.emplace(key, entry).first;
+                if (it == fallback_cache.end()) {
+                    auto msg = Format("Unable to look up glyph {} for {}", c, fontface_to_name(fontface));
+                    std::cerr << msg << std::endl;
+                    try {
+                        it = fallback_cache.emplace(key, f.getglyph(UNICODE_QUESTION_MARK)).first;
+                    } catch (const std::out_of_range &) {
+                        garglk::winabort(Format("{}, and substituting '?' failed", msg));
+                    }
+                }
             }
 
             return it->second;
         };
 
-        std::shared_ptr<const FontEntry> entry;
-        try {
-            entry = glyph(c);
-        } catch (const std::out_of_range &) {
-            entry = glyph('?');
-        }
-
-        if (entry == nullptr) {
-            garglk::winabort(Format("unable to look up glyph {} for {}", c, fontface_to_name(fontface)));
-        }
-
         if (prev != -1) {
             x += f.charkern(prev, c);
         }
 
-        callback(x, entry->glyph);
+        const auto &entry = glyph(c);
+
+        callback(x, entry.glyph);
 
         if (spw >= 0 && c == ' ') {
             x += spw;
         } else {
-            x += entry->adv;
+            x += entry.adv;
         }
 
         prev = c;

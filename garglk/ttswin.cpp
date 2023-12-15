@@ -18,6 +18,7 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 
 #include <array>
 #include <cstddef>
@@ -55,7 +56,7 @@ void gli_tts_flush()
 {
     if (voice != nullptr) {
         txtbuf[txtlen] = 0;
-        voice->Speak(txtbuf.data(), SPF_ASYNC, nullptr);
+        voice->Speak(txtbuf.data(), SPF_ASYNC | SPF_IS_NOT_XML, nullptr);
     }
 
     txtlen = 0;

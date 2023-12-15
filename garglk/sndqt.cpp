@@ -81,6 +81,10 @@ static schanid_t gli_bleep_channel;
 static bool mp3_initialized;
 #endif
 
+#ifdef _MSC_VER
+using ssize_t = std::make_signed_t<size_t>;
+#endif
+
 namespace {
 
 class VFSAbstract {
@@ -437,8 +441,9 @@ struct glk_schannel_struct {
         rock(rock_),
         disprock(gli_register_obj != nullptr ?
                 gli_register_obj(this, gidisp_Class_Schannel) :
-                (gidispatch_rock_t){ .ptr = nullptr })
+                gidispatch_rock_t{})
     {
+        timer.setTimerType(Qt::TimerType::PreciseTimer);
     }
 
     glk_schannel_struct(const glk_schannel_struct &) = delete;

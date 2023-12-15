@@ -120,24 +120,7 @@ struct ConfigFile {
     ConfigFile(std::string path_, Type type_) : path(std::move(path_)), type(type_) {
     }
 
-    std::string format_type() const {
-        std::string status = "";
-        std::ifstream f(path);
-        if (!f.is_open()) {
-            status = ", non-existent";
-        }
-
-        switch (type) {
-        case Type::System:
-            return "[system" + status + "]";
-        case Type::User:
-            return "[user" + status + "]";
-        case Type::PerGame:
-            return "[game specific" + status + "]";
-        default:
-            return "";
-        }
-    }
+    std::string format_type() const;
 
     // The path to the file itself.
     std::string path;
@@ -220,8 +203,15 @@ class PixelView;
 template <std::size_t N>
 class Pixel {
 public:
+    // Unfortunately, at the moment a default constructor is required so
+    // that pixels can be placed in a vector.
+    Pixel() {
+        m_pixel.fill(0);
+    }
+
     template <typename... Args>
     explicit Pixel(Args... args) : m_pixel{static_cast<unsigned char>(args)...} {
+        static_assert(sizeof...(Args) == N, "Incorrect argument count for Pixel");
     }
 
     // This is intentionally _not_ explicit so that PixelViews can be
@@ -315,7 +305,7 @@ public:
     explicit ConstRow(const unsigned char *row) : m_row(row) {
     }
 
-    const unsigned char *operator[](std::size_t x) {
+    const unsigned char *operator[](std::size_t x) const {
         return &m_row[x * N];
     }
 
