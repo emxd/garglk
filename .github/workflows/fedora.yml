@@ -1,6 +1,7 @@
 name: Fedora packages
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 

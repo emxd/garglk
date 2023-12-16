@@ -1,6 +1,7 @@
 name: macOS (DMG)
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 
